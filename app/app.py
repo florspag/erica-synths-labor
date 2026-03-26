@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import dash
 from dash import html, dcc, Input, Output
+import dash_bootstrap_components as dbc
+from enum import StrEnum
 import plotly.graph_objs as go
 import numpy as np
-import dash_bootstrap_components as dbc
+
 
 app = dash.Dash(
     __name__,
@@ -33,6 +35,13 @@ app.index_string = '''
 </html>
 '''
 
+class CircuitType(StrEnum):
+    LOWPASS = 'lowpass'
+    OHM = "ohm"
+    RC = 'rc'
+    SQUARE = 'square'
+
+
 # ---- LAYOUT ----
 app.layout = dbc.Container([
     dbc.Row([
@@ -48,9 +57,10 @@ app.layout = dbc.Container([
                             dbc.Select(
                                 id='selected-circuit',
                                 options=[
-                                    {'label': "Ohm's Law", 'value': 'ohm'},
-                                    {'label': "RC Circuit", 'value': 'rc'},
-                                    {'label': "Low Pass Filter", 'value': 'lowpass'}
+                                    {'label': "Ohm's Law", 'value': CircuitType.OHM},
+                                    {'label': "RC Circuit", 'value': CircuitType.RC},
+                                    {'label': "Low Pass Filter", 'value': CircuitType.LOWPASS},
+                                    {'label': "Square Wave Generator", 'value': CircuitType.SQUARE}
                                 ],
                                 placeholder="Choose a circuit",
                                 className="mb-3"
@@ -212,6 +222,109 @@ def generate_lowpass_ui():
         ])
     ])
 
+def generate_square_ui():
+    return dbc.Card([
+        dbc.CardBody([
+            html.H5("Square Wave Generator (CD40106 Schmitt Trigger)", 
+                    style={"fontSize": "20px", "fontWeight": "bold"}),
+
+            # Description
+            html.P(
+                "This oscillator uses a CD40106 Schmitt trigger inverter with an RC feedback network. "
+                "The capacitor charges and discharges exponentially between two threshold voltages "
+                "(V_T+ and V_T-). When these thresholds are reached, the inverter switches state, "
+                "producing a stable square wave. The hysteresis of the Schmitt trigger ensures clean "
+                "transitions and noise immunity.",
+                style={"fontSize": "14px"}
+            ),
+
+            # Equations
+            html.Div([
+                html.B("Key Equations:"),
+
+                html.Div(
+                    "1. Period: $$T = RC \\cdot \\ln\\left(\\frac{V_{T+}(V_{cc}-V_{T-})}{V_{T-}(V_{cc}-V_{T+})}\\right)$$",
+                    style={"fontSize": "16px", "marginTop": "5px", "fontFamily": "serif"}
+                ),
+
+                html.Div(
+                    "2. Frequency: $$f = \\frac{1}{T}$$",
+                    style={"fontSize": "16px", "marginTop": "5px", "fontFamily": "serif"}
+                ),
+
+                html.Div(
+                    "3. Capacitor Voltage: $$V_C(t) = V_{final} + (V_{initial} - V_{final}) e^{-t/(RC)}$$",
+                    style={"fontSize": "16px", "marginTop": "5px", "fontFamily": "serif"}
+                )
+            ], style={"marginBottom": "15px"}),
+
+            # Resistance slider
+            dbc.Label("Resistance (Ω)", style={"fontSize": "14px"}),
+            dcc.Slider(
+                id='sq_r',
+                min=1000,
+                max=1000000,
+                step=1000,
+                value=10000,
+                marks={1000: '1k', 100000: '100k', 1000000: '1M'},
+                tooltip={"placement": "bottom", "always_visible": True}
+            ),
+
+            # Capacitance slider
+            dbc.Label("Capacitance (nF)", className="mt-3", style={"fontSize": "14px"}),
+            dcc.Slider(
+                id='sq_c',
+                min=1,
+                max=1000,
+                step=1,
+                value=100,
+                marks={1: '1', 100: '100', 1000: '1000'},
+                tooltip={"placement": "bottom", "always_visible": True}
+            ),
+            
+            # VCC slider
+            dbc.Label("Supply Voltage Vcc (V)", className="mt-3"),
+            dcc.Slider(
+                id='sq_vcc',
+                min=3,
+                max=15,
+                step=0.5,
+                value=5,
+                marks={3: '3V', 5: '5V', 10: '10V', 15: '15V'},
+                tooltip={"placement": "bottom", "always_visible": True}
+            ),
+
+            # Upper threshold
+            dbc.Label("Upper Threshold Vt+ (ratio of Vcc)", className="mt-3"),
+            dcc.Slider(
+                id='sq_vtp',
+                min=0.5,
+                max=0.9,
+                step=0.01,
+                value=0.7,
+                marks={0.5: '0.5', 0.7: '0.7', 0.9: '0.9'},
+                tooltip={"placement": "bottom", "always_visible": True}
+            ),
+
+            # Lower threshold
+            dbc.Label("Lower Threshold Vt- (ratio of Vcc)", className="mt-3"),
+            dcc.Slider(
+                id='sq_vtm',
+                min=0.1,
+                max=0.5,
+                step=0.01,
+                value=0.3,
+                marks={0.1: '0.1', 0.3: '0.3', 0.5: '0.5'},
+                tooltip={"placement": "bottom", "always_visible": True}
+            ),
+            # Graph
+            dcc.Graph(
+                id='sq-graph',
+                style={"height": "350px", "marginTop": "20px"}
+            )
+        ])
+    ], style={"margin": "20px"})
+
 # ---- CALLBACKS ----
 
 @app.callback(
@@ -219,15 +332,17 @@ def generate_lowpass_ui():
     Input('selected-circuit', 'value')
 )
 def render_simulation(circuit_type):
-    if not circuit_type:
-        return dbc.Alert("Select a circuit to begin", color="info")
-    
-    if circuit_type == 'ohm':
-        return generate_ohm_ui()
-    if circuit_type == 'rc':
-        return generate_rc_ui()
-    if circuit_type == 'lowpass':
-        return generate_lowpass_ui()
+    match circuit_type: 
+        case CircuitType.OHM:
+            return generate_ohm_ui()
+        case CircuitType.RC:
+            return generate_rc_ui()
+        case CircuitType.LOWPASS:
+            return generate_lowpass_ui()
+        case CircuitType.SQUARE:
+            return generate_square_ui()
+        case _:
+            return dbc.Alert("Select a circuit to begin", color="info")
 
     return dbc.Alert("Unsupported circuit", color="warning")
 
@@ -265,6 +380,86 @@ def update_lowpass_graph(R, C):
     H = 1 / np.sqrt(1 + (omega * R * C * 1e-9)**2)
     fig = go.Figure(go.Scatter(x=f, y=H))
     fig.update_layout(template="plotly_dark", title="Low Pass Filter Response", xaxis_title="Frequency (Hz)", yaxis_title="Amplitude", xaxis_type='log')
+    return fig
+
+@app.callback(
+    Output('sq-graph', 'figure'),
+    Input('sq_r', 'value'),
+    Input('sq_c', 'value'),
+    Input('sq_vcc', 'value'),
+    Input('sq_vtp', 'value'),
+    Input('sq_vtm', 'value'),
+    prevent_initial_call=True
+)
+
+def update_40106_wave(R, C, Vcc, vtp_ratio, vtm_ratio):
+
+    C = C * 1e-9  # nF → F
+
+    # Convert ratios → actual voltages
+    Vt_plus = vtp_ratio * Vcc
+    Vt_minus = vtm_ratio * Vcc
+
+    # Safety check
+    if Vt_minus >= Vt_plus:
+        return go.Figure().update_layout(
+            template="plotly_dark",
+            title="Error: Vt- must be lower than Vt+"
+        )
+
+    # Exact period
+    T = R * C * np.log(
+        (Vt_plus * (Vcc - Vt_minus)) /
+        (Vt_minus * (Vcc - Vt_plus))
+    )
+
+    f = 1 / T if T > 0 else 0
+
+    t = np.linspace(0, 5*T, 2000)
+
+    vc = np.zeros_like(t)
+    vout = np.zeros_like(t)
+
+    vc_current = Vt_minus
+    state_high = True
+    last_switch_time = 0
+
+    for i, time in enumerate(t):
+        dt = time - last_switch_time
+
+        if state_high:
+            vc_current = Vcc - (Vcc - vc_current) * np.exp(-dt / (R * C))
+            vout[i] = Vcc
+
+            if vc_current >= Vt_plus:
+                state_high = False
+                last_switch_time = time
+        else:
+            vc_current = vc_current * np.exp(-dt / (R * C))
+            vout[i] = 0
+
+            if vc_current <= Vt_minus:
+                state_high = True
+                last_switch_time = time
+
+        vc[i] = vc_current
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(x=t, y=vout, mode='lines', name='Output'))
+    fig.add_trace(go.Scatter(x=t, y=vc, mode='lines', name='Capacitor Voltage'))
+
+    # Threshold lines
+    fig.add_hline(y=Vt_plus, line_dash="dot", annotation_text="Vt+")
+    fig.add_hline(y=Vt_minus, line_dash="dot", annotation_text="Vt-")
+
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"f ≈ {f:.1f} Hz | Vcc={Vcc}V | Vt+={Vt_plus:.2f}V | Vt-={Vt_minus:.2f}V",
+        xaxis_title="Time (s)",
+        yaxis_title="Voltage (V)"
+    )
+
     return fig
 
 # ---- CLIENTSIDE CALLBACK to trigger MathJax ----
