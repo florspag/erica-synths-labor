@@ -40,6 +40,7 @@ class CircuitType(StrEnum):
     OHM = "ohm"
     RC = 'rc'
     SQUARE = 'square'
+    VCA = "vca"
 
 
 # ---- LAYOUT ----
@@ -60,7 +61,8 @@ app.layout = dbc.Container([
                                     {'label': "Ohm's Law", 'value': CircuitType.OHM},
                                     {'label': "RC Circuit", 'value': CircuitType.RC},
                                     {'label': "Low Pass Filter", 'value': CircuitType.LOWPASS},
-                                    {'label': "Square Wave Generator", 'value': CircuitType.SQUARE}
+                                    {'label': "Square Wave Generator", 'value': CircuitType.SQUARE},
+                                    {'label': "Crude VCA", 'value': CircuitType.VCA}
                                 ],
                                 placeholder="Choose a circuit",
                                 className="mb-3"
@@ -325,6 +327,110 @@ def generate_square_ui():
         ])
     ], style={"margin": "20px"})
 
+def generate_vca_ui():
+    return dbc.Card([
+        dbc.CardBody([
+            html.H5("Crude Transistor VCA (Diode + RC Envelope)", 
+                    style={"fontSize": "20px", "fontWeight": "bold"}),
+
+            # Description
+            html.P(
+                "This circuit uses a transistor as a voltage-controlled amplifier. "
+                "A diode-capacitor network generates an envelope voltage that controls "
+                "the transistor's base-emitter voltage, modulating the gain. The result "
+                "is a nonlinear VCA commonly used in simple audio and envelope circuits.",
+                style={"fontSize": "14px"}
+            ),
+
+            # Equations
+            html.Div([
+                html.B("Key Equations:"),
+
+                html.Div(
+                    "1. Input: $$V_{in}(t) = A \\sin(2\\pi f t)$$",
+                    style={"fontSize": "16px", "marginTop": "5px"}
+                ),
+
+                html.Div(
+                    "2. Envelope: $$V_{env}(t) = V_c (1 - e^{-t/(RC)})$$",
+                    style={"fontSize": "16px", "marginTop": "5px"}
+                ),
+
+                html.Div(
+                    "3. Gain: $$G(t) = e^{\\alpha V_{env}(t)}$$",
+                    style={"fontSize": "16px", "marginTop": "5px"}
+                ),
+
+                html.Div(
+                    "4. Output: $$V_{out}(t) = G(t) \\cdot V_{in}(t)$$",
+                    style={"fontSize": "16px", "marginTop": "5px"}
+                )
+            ], style={"marginBottom": "15px"}),
+
+            # Input amplitude
+            dbc.Label("Input Amplitude (V)"),
+            dcc.Slider(
+                id='vca_amp',
+                min=0.1,
+                max=5,
+                step=0.1,
+                value=1,
+                marks={0.1: '0.1', 1: '1', 5: '5'},
+                tooltip={"always_visible": True}
+            ),
+
+            # Frequency
+            dbc.Label("Frequency (Hz)", className="mt-3"),
+            dcc.Slider(
+                id='vca_freq',
+                min=1,
+                max=1000,
+                step=1,
+                value=50,
+                marks={1: '1', 100: '100', 1000: '1k'},
+                tooltip={"always_visible": True}
+            ),
+
+            # Control voltage
+            dbc.Label("Control Voltage (V)", className="mt-3"),
+            dcc.Slider(
+                id='vca_ctrl',
+                min=0,
+                max=5,
+                step=0.1,
+                value=2,
+                marks={0: '0', 2.5: '2.5', 5: '5'},
+                tooltip={"always_visible": True}
+            ),
+
+            # RC time constant
+            dbc.Label("RC Time Constant (s)", className="mt-3"),
+            dcc.Slider(
+                id='vca_tau',
+                min=0.001,
+                max=0.1,
+                step=0.001,
+                value=0.01,
+                marks={0.001: '1ms', 0.01: '10ms', 0.1: '100ms'},
+                tooltip={"always_visible": True}
+            ),
+
+            # Gain sensitivity
+            dbc.Label("Transistor Sensitivity (α)", className="mt-3"),
+            dcc.Slider(
+                id='vca_alpha',
+                min=0.5,
+                max=5,
+                step=0.1,
+                value=2,
+                marks={0.5: '0.5', 2: '2', 5: '5'},
+                tooltip={"always_visible": True}
+            ),
+
+            dcc.Graph(id='vca-graph', style={"height": "350px", "marginTop": "20px"})
+        ])
+    ])
+
 # ---- CALLBACKS ----
 
 @app.callback(
@@ -341,6 +447,8 @@ def render_simulation(circuit_type):
             return generate_lowpass_ui()
         case CircuitType.SQUARE:
             return generate_square_ui()
+        case CircuitType.VCA:
+            return generate_vca_ui()
         case _:
             return dbc.Alert("Select a circuit to begin", color="info")
 
@@ -391,7 +499,6 @@ def update_lowpass_graph(R, C):
     Input('sq_vtm', 'value'),
     prevent_initial_call=True
 )
-
 def update_40106_wave(R, C, Vcc, vtp_ratio, vtm_ratio):
 
     C = C * 1e-9  # nF → F
@@ -462,6 +569,45 @@ def update_40106_wave(R, C, Vcc, vtp_ratio, vtm_ratio):
 
     return fig
 
+@app.callback(
+    Output('vca-graph', 'figure'),
+    Input('vca_amp', 'value'),
+    Input('vca_freq', 'value'),
+    Input('vca_ctrl', 'value'),
+    Input('vca_tau', 'value'),
+    Input('vca_alpha', 'value'),
+    prevent_initial_call=True
+)
+def update_vca(amp, freq, vc, tau, alpha):
+
+    t = np.linspace(0, 1, 2000)
+
+    # Input signal
+    vin = amp * np.sin(2 * np.pi * freq * t)
+
+    # Envelope (RC charge)
+    venv = vc * (1 - np.exp(-t / tau))
+
+    # Exponential transistor gain
+    gain = np.exp(alpha * venv)
+
+    # Output
+    vout = gain * vin
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(x=t, y=vin, name='Input'))
+    fig.add_trace(go.Scatter(x=t, y=vout, name='Output'))
+    fig.add_trace(go.Scatter(x=t, y=venv, name='Envelope'))
+
+    fig.update_layout(
+        template="plotly_dark",
+        title="Transistor VCA (Envelope-Controlled Gain)",
+        xaxis_title="Time (s)",
+        yaxis_title="Voltage / Gain"
+    )
+
+    return fig
 # ---- CLIENTSIDE CALLBACK to trigger MathJax ----
 app.clientside_callback(
     """
