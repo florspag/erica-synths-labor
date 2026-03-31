@@ -6,7 +6,6 @@ from enum import StrEnum
 import plotly.graph_objs as go
 import numpy as np
 
-
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -330,106 +329,157 @@ def generate_square_ui():
 def generate_vca_ui():
     return dbc.Card([
         dbc.CardBody([
-            html.H5("Crude Transistor VCA (Diode + RC Envelope)", 
-                    style={"fontSize": "20px", "fontWeight": "bold"}),
 
-            # Description
+            html.H5(
+                "Crude VCA / Collector Diode RC System",
+                style={"fontSize": "20px", "fontWeight": "bold"}
+            ),
+
             html.P(
-                "This circuit uses a transistor as a voltage-controlled amplifier. "
-                "A diode-capacitor network generates an envelope voltage that controls "
-                "the transistor's base-emitter voltage, modulating the gain. The result "
-                "is a nonlinear VCA commonly used in simple audio and envelope circuits.",
+                "Nonlinear analog system based on a BJT current source feeding a series diode "
+                "and RC load. The transistor generates a nonlinear collector current, the diode "
+                "acts as a one-way transfer element, and the RC network integrates the output.",
                 style={"fontSize": "14px"}
             ),
 
-            # Equations
+            # =========================
+            # EQUATIONS
+            # =========================
             html.Div([
                 html.B("Key Equations:"),
 
-                html.Div(
-                    "1. Input: $$V_{in}(t) = A \\sin(2\\pi f t)$$",
-                    style={"fontSize": "16px", "marginTop": "5px"}
-                ),
+                dcc.Markdown(r"""
+            Input signal
+            $$
+            V_{in}(t) = A \sin(2\pi f t)
+            $$
 
-                html.Div(
-                    "2. Envelope: $$V_{env}(t) = V_c (1 - e^{-t/(RC)})$$",
-                    style={"fontSize": "16px", "marginTop": "5px"}
-                ),
+            Base voltage
+            $$
+            V_B(t) = V_{bias} + V_{in}(t)
+            $$
 
-                html.Div(
-                    "3. Gain: $$G(t) = e^{\\alpha V_{env}(t)}$$",
-                    style={"fontSize": "16px", "marginTop": "5px"}
-                ),
+            Transistor collector current (Ebers–Moll model)
+            $$
+            I_C(t) = I_S \exp\left(\frac{V_{BE}(t)}{V_T}\right)
+            $$
 
-                html.Div(
-                    "4. Output: $$V_{out}(t) = G(t) \\cdot V_{in}(t)$$",
-                    style={"fontSize": "16px", "marginTop": "5px"}
+            Collector voltage
+            $$
+            V_C(t) = V_{CC} - R_C \cdot I_C(t)
+            $$
+
+            Series diode transfer condition
+            $$
+            V_{after}(t) =
+            \begin{cases}
+            V_C(t) - V_D & \text{if } V_C(t) > V_{out}(t) + V_D \\
+            V_{out}(t) & \text{otherwise}
+            \end{cases}
+            $$
+
+            RC output dynamics
+            $$
+            \frac{dV_{out}(t)}{dt} = \frac{1}{\tau} \left(V_{after}(t) - V_{out}(t)\right)
+            $$
+
+            Time constant
+            $$
+            \tau = R C
+            $$
+            """, mathjax=True)
+
+            ], style={"margin": "20px"}),
+
+            html.Div([
+                html.B("Crude VCA / Collector Diode Topology"),
+
+                html.Pre(
+            """                                     Vcc
+                                    │
+                                    Rc
+                                    │
+                                    ●────────────── Vout
+                                    │
+                                    |>|   Diode
+                                    │
+                                Collector (C)
+                                    │
+                                    |\\
+            Vin ──||───────┬───────| >──── Base (B)
+                Cin       │         |/
+                          │         │
+                        Rbias      Emitter
+                          │          │
+                         Vbias      GND
+                          │
+                         GND
+
+            CONTROL:
+            Vcontrol ─── Rctrl ─── Cenv ─── GND
+            """,
+                    style={
+                        "backgroundColor": "#0b0b0b",
+                        "color": "#00ff88",
+                        "padding": "14px",
+                        "borderRadius": "8px",
+                        "fontSize": "13px",
+                        "lineHeight": "1.25",
+                        "overflowX": "auto",
+                        "border": "1px solid #1f1f1f"
+                    }
                 )
-            ], style={"marginBottom": "15px"}),
+            ], style={"marginTop": "15px"}),
 
-            # Input amplitude
-            dbc.Label("Input Amplitude (V)"),
+            # =========================
+            # SLIDERS
+            # =========================
+
+            dbc.Label("Input Amplitude"),
             dcc.Slider(
                 id='vca_amp',
-                min=0.1,
-                max=5,
-                step=0.1,
-                value=1,
-                marks={0.1: '0.1', 1: '1', 5: '5'},
-                tooltip={"always_visible": True}
+                min=0.1, max=5, step=0.1, value=1,
+                marks={0.1: "0.1", 2: "2", 5: "5"}
             ),
 
-            # Frequency
-            dbc.Label("Frequency (Hz)", className="mt-3"),
+            dbc.Label("Input Frequency (Hz)", className="mt-3"),
             dcc.Slider(
                 id='vca_freq',
-                min=1,
-                max=1000,
-                step=1,
-                value=50,
-                marks={1: '1', 100: '100', 1000: '1k'},
-                tooltip={"always_visible": True}
+                min=1, max=500, step=1, value=50,
+                marks={1: "1", 250: "250", 500: "500"}
             ),
 
-            # Control voltage
-            dbc.Label("Control Voltage (V)", className="mt-3"),
+            dbc.Label("Control Voltage (Envelope Source)", className="mt-3"),
             dcc.Slider(
                 id='vca_ctrl',
-                min=0,
-                max=5,
-                step=0.1,
-                value=2,
-                marks={0: '0', 2.5: '2.5', 5: '5'},
-                tooltip={"always_visible": True}
+                min=0, max=5, step=0.1, value=2.5,
+                marks={0: "0", 2.5: "2.5", 5: "5"}
             ),
 
-            # RC time constant
-            dbc.Label("RC Time Constant (s)", className="mt-3"),
+            dbc.Label("Time Constant τ (RC Envelope)", className="mt-3"),
             dcc.Slider(
                 id='vca_tau',
-                min=0.001,
-                max=0.1,
-                step=0.001,
-                value=0.01,
-                marks={0.001: '1ms', 0.01: '10ms', 0.1: '100ms'},
-                tooltip={"always_visible": True}
+                min=0.001, max=0.1, step=0.001, value=0.02,
+                marks={0.001: "1ms", 0.05: "50ms", 0.1: "100ms"}
             ),
 
-            # Gain sensitivity
-            dbc.Label("Transistor Sensitivity (α)", className="mt-3"),
+            dbc.Label("Base Bias (V)", className="mt-3"),
             dcc.Slider(
-                id='vca_alpha',
-                min=0.5,
-                max=5,
-                step=0.1,
-                value=2,
-                marks={0.5: '0.5', 2: '2', 5: '5'},
-                tooltip={"always_visible": True}
+                id='vca_bias',
+                min=0, max=1.5, step=0.01, value=0.7,
+                marks={0: "0", 0.7: "0.7", 1.5: "1.5"}
             ),
 
-            dcc.Graph(id='vca-graph', style={"height": "350px", "marginTop": "20px"})
+            # =========================
+            # OUTPUT
+            # =========================
+            dcc.Graph(
+                id='vca-graph',
+                style={"height": "420px", "marginTop": "20px"}
+            )
         ])
-    ])
+    ], style={"padding": "10px"})
+
 
 # ---- CALLBACKS ----
 
@@ -575,39 +625,99 @@ def update_40106_wave(R, C, Vcc, vtp_ratio, vtm_ratio):
     Input('vca_freq', 'value'),
     Input('vca_ctrl', 'value'),
     Input('vca_tau', 'value'),
-    Input('vca_alpha', 'value'),
+    Input('vca_bias', 'value'),
     prevent_initial_call=True
 )
-def update_vca(amp, freq, vc, tau, alpha):
+def update_vca(amp, freq, vctrl, tau, bias):
 
-    t = np.linspace(0, 1, 2000)
+    import numpy as np
+    import plotly.graph_objs as go
 
-    # Input signal
+    # =========================
+    # CONSTANTS
+    # =========================
+    Vcc = 5
+    Rc = 1000
+    Vd = 0.7
+    Is = 1e-12
+    Vt = 0.026
+
+    # =========================
+    # TIME VECTOR
+    # =========================
+    t = np.linspace(0, 0.1, 2000)
+    dt = t[1] - t[0]
+
+    # =========================
+    # INPUT SIGNAL
+    # =========================
     vin = amp * np.sin(2 * np.pi * freq * t)
 
-    # Envelope (RC charge)
-    venv = vc * (1 - np.exp(-t / tau))
+    # =========================
+    # CONTROL ENVELOPE (RC)
+    # =========================
+    venv = np.zeros_like(t)
 
-    # Exponential transistor gain
-    gain = np.exp(alpha * venv)
+    for i in range(1, len(t)):
+        if vctrl > venv[i-1]:
+            venv[i] = venv[i-1] + (vctrl - venv[i-1]) / tau * dt
+        else:
+            venv[i] = venv[i-1] - venv[i-1] / tau * dt
 
-    # Output
-    vout = gain * vin
+    # =========================
+    # TRANSISTOR STAGE
+    # =========================
+    vb = bias + vin
 
+    Ic = Is * np.exp(np.clip(vb / Vt, -40, 40))
+
+    vc = Vcc - Rc * Ic
+    vc = np.clip(vc, 0, Vcc)
+
+    # =========================
+    # SERIES DIODE STAGE
+    # =========================
+    v_after = np.zeros_like(t)
+
+    for i in range(len(t)):
+
+        prev = v_after[i-1] if i > 0 else 0
+
+        # diode conduction condition
+        if vc[i] > prev + Vd:
+            v_after[i] = vc[i] - Vd
+        else:
+            v_after[i] = prev
+
+    # =========================
+    # RC OUTPUT FILTER
+    # =========================
+    vout = np.zeros_like(t)
+
+    for i in range(1, len(t)):
+        vout[i] = vout[i-1] + (v_after[i] - vout[i-1]) / tau * dt
+
+    # =========================
+    # PLOT
+    # =========================
     fig = go.Figure()
 
-    fig.add_trace(go.Scatter(x=t, y=vin, name='Input'))
-    fig.add_trace(go.Scatter(x=t, y=vout, name='Output'))
-    fig.add_trace(go.Scatter(x=t, y=venv, name='Envelope'))
+    fig.add_trace(go.Scatter(x=t, y=vin, name="Vin", opacity=0.6))
+    fig.add_trace(go.Scatter(x=t, y=vc, name="Collector"))
+    fig.add_trace(go.Scatter(x=t, y=v_after, name="After Diode"))
+    fig.add_trace(go.Scatter(x=t, y=vout, name="Vout", line=dict(width=3)))
+    fig.add_trace(go.Scatter(x=t, y=venv, name="Envelope", opacity=0.7))
 
     fig.update_layout(
         template="plotly_dark",
-        title="Transistor VCA (Envelope-Controlled Gain)",
+        title="Collector → Diode → RC Crude VCA (Single Topology)",
         xaxis_title="Time (s)",
-        yaxis_title="Voltage / Gain"
+        yaxis_title="Voltage (V)",
+        legend=dict(orientation="h")
     )
 
     return fig
+
 # ---- CLIENTSIDE CALLBACK to trigger MathJax ----
 app.clientside_callback(
     """
