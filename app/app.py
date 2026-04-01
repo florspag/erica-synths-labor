@@ -40,6 +40,7 @@ class CircuitType(StrEnum):
     RC = 'rc'
     SQUARE = 'square'
     VCA = "vca"
+    BRIDGED_T_OSC = "bridged_t_osc"
 
 
 # ---- LAYOUT ----
@@ -61,7 +62,8 @@ app.layout = dbc.Container([
                                     {'label': "RC Circuit", 'value': CircuitType.RC},
                                     {'label': "Low Pass Filter", 'value': CircuitType.LOWPASS},
                                     {'label': "Square Wave Generator", 'value': CircuitType.SQUARE},
-                                    {'label': "Crude VCA", 'value': CircuitType.VCA}
+                                    {'label': "Crude VCA", 'value': CircuitType.VCA},
+                                    {'label': "Bridged T Oscillator", 'value': CircuitType.BRIDGED_T_OSC}
                                 ],
                                 placeholder="Choose a circuit",
                                 className="mb-3"
@@ -336,9 +338,14 @@ def generate_vca_ui():
             ),
 
             html.P(
-                "Nonlinear analog system based on a BJT current source feeding a series diode "
-                "and RC load. The transistor generates a nonlinear collector current, the diode "
-                "acts as a one-way transfer element, and the RC network integrates the output.",
+                "Crude Transistor VCA / Nonlinear Output Stage – This circuit uses a BJT configured "
+                "as an exponential current source driving a series diode and an RC load. The input "
+                "signal modulates the base voltage, producing a nonlinear collector current. The diode "
+                "acts as a unidirectional transfer element, allowing current to charge the output node "
+                "only when the collector voltage exceeds the diode threshold. The RC network then "
+                "integrates this signal, resulting in a smoothed, amplitude-dependent output. The overall "
+                "behavior combines amplification, rectification, and dynamic filtering, producing a "
+                "crude voltage-controlled amplitude shaping effect.",
                 style={"fontSize": "14px"}
             ),
 
@@ -346,51 +353,96 @@ def generate_vca_ui():
             # EQUATIONS
             # =========================
             html.Div([
-                html.B("Key Equations:"),
 
-                dcc.Markdown(r"""
-            Input signal
-            $$
-            V_{in}(t) = A \sin(2\pi f t)
-            $$
+                html.B("Mathematical Model (Crude VCA – Collector Diode RC)"),
 
-            Base voltage
-            $$
-            V_B(t) = V_{bias} + V_{in}(t)
-            $$
+                html.Div("Signal Definition:", style={"marginTop": "10px"}),
+                html.Div("$$V_{in}(t) = A \\sin(2\\pi f t)$$"),
 
-            Transistor collector current (Ebers–Moll model)
-            $$
-            I_C(t) = I_S \exp\left(\frac{V_{BE}(t)}{V_T}\right)
-            $$
+                html.Div("Base Voltage:", style={"marginTop": "10px"}),
+                html.Div("$$V_B(t) = V_{bias} + V_{in}(t)$$"),
 
-            Collector voltage
-            $$
-            V_C(t) = V_{CC} - R_C \cdot I_C(t)
-            $$
+                html.Div("Base-Emitter Voltage:", style={"marginTop": "10px"}),
+                html.Div("$$V_{BE}(t) = V_B(t) - V_E$$"),
+                html.Div("$$V_E = 0 \\Rightarrow V_{BE}(t) = V_B(t)$$"),
 
-            Series diode transfer condition
-            $$
-            V_{after}(t) =
-            \begin{cases}
-            V_C(t) - V_D & \text{if } V_C(t) > V_{out}(t) + V_D \\
-            V_{out}(t) & \text{otherwise}
-            \end{cases}
-            $$
+                html.Div("Transistor Current (Ebers–Moll):", style={"marginTop": "10px"}),
+                html.Div("$$I_C(t) = I_S \\exp\\left(\\frac{V_{BE}(t)}{V_T}\\right)$$"),
 
-            RC output dynamics
-            $$
-            \frac{dV_{out}(t)}{dt} = \frac{1}{\tau} \left(V_{after}(t) - V_{out}(t)\right)
-            $$
+                html.Div("Collector Voltage:", style={"marginTop": "10px"}),
+                html.Div("$$V_C(t) = V_{CC} - R_C \\cdot I_C(t)$$"),
 
-            Time constant
-            $$
-            \tau = R C
-            $$
-            """, mathjax=True)
+                html.Div("Series Diode Behavior:", style={"marginTop": "10px"}),
+                html.Div(
+                    "$$V_{after}(t) = "
+                    "\\begin{cases}"
+                    "V_C(t) - V_D & \\text{if } V_C(t) > V_{out}(t) + V_D \\\\"
+                    "V_{out}(t) & \\text{otherwise}"
+                    "\\end{cases}$$"
+                ),
+
+                html.Div("RC Output Dynamics:", style={"marginTop": "10px"}),
+                html.Div("$$\\frac{dV_{out}(t)}{dt} = \\frac{1}{\\tau}(V_{after}(t) - V_{out}(t))$$"),
+
+                html.Div("Time Constant:", style={"marginTop": "10px"}),
+                html.Div("$$\\tau = R \\cdot C$$"),
+
+                html.Hr()
+
 
             ], style={"margin": "20px"}),
 
+
+            html.Div([
+
+                html.B("Variable Definitions:"),
+
+                html.Div([
+                    html.Div("Input signal"),
+                    html.Div("$$V_{in}(t)$$"),
+
+                    html.Div("Amplitude"),
+                    html.Div("$$A$$"),
+
+                    html.Div("Frequency"),
+                    html.Div("$$f$$"),
+
+                    html.Div("Base voltage"),
+                    html.Div("$$V_B(t)$$"),
+
+                    html.Div("Emitter voltage"),
+                    html.Div("$$V_E = 0$$")
+                ], style={
+                    "display": "grid",
+                    "gridTemplateColumns": "1fr 1fr",
+                    "gap": "8px",
+                    "marginTop": "10px"
+                }),
+
+                html.Div([
+                    html.Div("Base-emitter voltage"),
+                    html.Div("$$V_{BE}(t) = V_B(t) - V_E$$"),
+
+                    html.Div("Collector current"),
+                    html.Div("$$I_C(t)$$"),
+
+                    html.Div("Collector voltage"),
+                    html.Div("$$V_C(t)$$"),
+
+                    html.Div("Output voltage"),
+                    html.Div("$$V_{out}(t)$$"),
+
+                    html.Div("Time constant"),
+                    html.Div("$$\\tau = RC$$"),
+                ], style={
+                    "display": "grid",
+                    "gridTemplateColumns": "1fr 1fr",
+                    "gap": "8px",
+                    "marginTop": "10px"
+                })
+
+            ], style={"margin": "20px"}),
+        
             html.Div([
                 html.B("Crude VCA / Collector Diode Topology"),
 
@@ -407,13 +459,13 @@ def generate_vca_ui():
                                     │
                                     |\\
             Vin ──||───────┬───────| >──── Base (B)
-                Cin       │         |/
-                          │         │
-                        Rbias      Emitter
-                          │          │
-                         Vbias      GND
-                          │
-                         GND
+                Cin        │        |/
+                           │        │
+                         Rbias   Emitter
+                           │        │
+                          Vbias    GND
+                           │
+                          GND
 
             CONTROL:
             Vcontrol ─── Rctrl ─── Cenv ─── GND
@@ -481,6 +533,170 @@ def generate_vca_ui():
     ], style={"padding": "10px"})
 
 
+def generate_bridged_t_ui():
+    return dbc.Card([
+        dbc.CardBody([
+
+            html.H5("Bridged-T Oscillator", style={"fontSize": "20px", "fontWeight": "bold"}),
+
+            html.P(
+                "Bridged-T Oscillator – This circuit consists of a single operational amplifier "
+                "with a frequency-selective bridged-T feedback network made of two resistors and "
+                "two capacitors. The RC network introduces a frequency-dependent attenuation and "
+                "phase shift, creating a notch response. When combined with the op-amp gain, the "
+                "loop satisfies the Barkhausen criterion, producing sustained sinusoidal oscillations "
+                "at the resonant frequency defined by R and C.",
+                style={"fontSize": "14px"}
+            ),
+            html.Div([
+
+                html.B("Circuit Topology (Bridged-T Oscillator):"),
+
+                html.Div([
+
+                    html.Pre("""
+                            Vout
+                            |
+                            +----------------------+
+                            |                      |
+                            R1                     C1
+                            |                      |
+                            +------●------●-------+
+                                    |      |
+                                C2     R2
+                                    |      |
+                                GND    GND
+
+                                    |
+                                    v
+                            (+) Op-Amp
+                                    |
+                                [A]
+                                    |
+                                Vout
+                                    ^
+                                    |
+                            (-) feedback from bridged-T network
+                    """, style={
+                        "padding": "12px",
+                        "borderRadius": "6px",
+                        "fontFamily": "monospace",
+                        "fontSize": "13px",
+                        "lineHeight": "1.2"
+                    })
+
+                ], style={"marginTop": "10px"})
+
+            ]),
+
+            # =========================
+            # EQUATIONS
+            # =========================
+            html.Div([
+
+                html.B("Key Equations:"),
+
+                html.Div("$$f_0 = \\frac{1}{2 \\pi R C}$$", style={"marginTop": "10px"}),
+                html.Div("$$\\omega_0 = \\frac{1}{R C}$$"),
+
+                html.Div("$$|A\\beta(j\\omega_0)| = 1$$", style={"marginTop": "10px"}),
+                html.Div("$$\\angle A\\beta(j\\omega_0) = 0$$"),
+
+            ], style={"padding": "10px"}),
+
+            html.Div([
+
+                html.B("Feedback Factor (β):"),
+
+                html.P(
+                    "The feedback factor β represents the fraction of the output signal that is "
+                    "fed back to the input through the bridged-T RC network. It is frequency-dependent "
+                    "and determines both the amplitude and phase of the feedback signal.",
+                    style={"fontSize": "14px"}
+                ),
+
+                html.Div("Definition:", style={"marginTop": "10px"}),
+                html.Div("$$V_{fb}(t) = \\beta \\cdot V_{out}(t)$$"),
+
+                html.Div("Loop Gain:", style={"marginTop": "10px"}),
+                html.Div("$$A \\beta$$"),
+
+                html.Div("Barkhausen Criterion:", style={"marginTop": "10px"}),
+                html.Div("$$|A \\beta| = 1$$"),
+                html.Div("$$\\angle A \\beta = 0$$"),
+
+                html.Div(
+                    "At the oscillation frequency, the RC network provides the correct phase shift "
+                    "and attenuation such that the amplifier compensates exactly, resulting in sustained oscillations.",
+                    style={"fontSize": "13px", "marginTop": "10px"}
+                )
+
+            ], style={"padding": "10px"}),
+
+            # =========================
+            # DEFINITIONS
+            # =========================
+            html.Div([
+
+                html.B("Variable Definitions:"),
+
+                html.Div([
+                    html.Div("Resistance"),
+                    html.Div("$$R$$"),
+
+                    html.Div("Capacitance"),
+                    html.Div("$$C$$"),
+
+                    html.Div("Frequency"),
+                    html.Div("$$f_0$$"),
+
+                    html.Div("Gain"),
+                    html.Div("$$A$$"),
+                ], style={
+                    "display": "grid",
+                    "gridTemplateColumns": "1fr 1fr",
+                    "gap": "8px",
+                    "marginTop": "10px"
+                })
+
+            ], style={"padding": "10px"}),
+
+            # =========================
+            # CONTROLS
+            # =========================
+
+            dbc.Label("Resistance (Ω)", className="mt-3"),
+            dcc.Slider(
+                id='bt_r',
+                min=1000, max=100000, step=1000, value=10000,
+                marks={1000: "1k", 50000: "50k", 100000: "100k"}
+            ),
+
+            dbc.Label("Capacitance (nF)", className="mt-3"),
+            dcc.Slider(
+                id='bt_c',
+                min=1, max=1000, step=1, value=10,
+                marks={1: "1", 500: "500", 1000: "1000"}
+            ),
+
+            dbc.Label("Gain (A)", className="mt-3"),
+            dcc.Slider(
+                id='bt_gain',
+                min=0.5, max=5, step=0.1, value=2,
+                marks={0.5: "0.5", 2: "2", 5: "5"}
+            ),
+
+            # =========================
+            # OUTPUT
+            # =========================
+            dcc.Graph(
+                id='bt-graph',
+                style={"height": "400px", "marginTop": "20px"}
+            )
+
+        ])
+    ])
+
 # ---- CALLBACKS ----
 
 @app.callback(
@@ -499,6 +715,8 @@ def render_simulation(circuit_type):
             return generate_square_ui()
         case CircuitType.VCA:
             return generate_vca_ui()
+        case CircuitType.BRIDGED_T_OSC:
+            return generate_bridged_t_ui()
         case _:
             return dbc.Alert("Select a circuit to begin", color="info")
 
@@ -630,9 +848,6 @@ def update_40106_wave(R, C, Vcc, vtp_ratio, vtm_ratio):
 )
 def update_vca(amp, freq, vctrl, tau, bias):
 
-    import numpy as np
-    import plotly.graph_objs as go
-
     # =========================
     # CONSTANTS
     # =========================
@@ -717,6 +932,70 @@ def update_vca(amp, freq, vctrl, tau, bias):
     )
 
     return fig
+
+@app.callback(
+    Output('bt-graph', 'figure'),
+    Input('bt_r', 'value'),
+    Input('bt_c', 'value'),
+    Input('bt_gain', 'value'),
+    prevent_initial_call=True
+)
+def update_bridged_t(R, C, A):
+
+    # Convert C from nF → F
+    C = C * 1e-9
+
+    # Oscillation frequency
+    f0 = 1 / (2 * np.pi * R * C)
+    omega0 = 2 * np.pi * f0
+
+    # Time
+    t = np.linspace(0, 0.1, 2000)
+    dt = t[1] - t[0]
+
+    # Initial condition (noise)
+    v = np.zeros_like(t)
+    v[0] = 0.01
+
+    # =========================
+    # SIMPLE OSCILLATOR MODEL
+    # =========================
+    # Discrete-time approximation of:
+    # d²v/dt² + ω0² v = 0 with gain
+
+    for i in range(2, len(t)):
+
+        # second-order oscillator equation
+        v[i] = (2 * v[i-1] - v[i-2]
+                - (omega0**2) * v[i-1] * dt**2)
+
+        # apply gain (controls growth)
+        v[i] *= A
+
+        # soft limiting (prevent explosion)
+        v[i] = np.tanh(v[i])
+
+    # =========================
+    # PLOT
+    # =========================
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=v,
+        mode='lines',
+        name='Output Signal'
+    ))
+
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"Bridged-T Oscillator (f₀ ≈ {f0:.1f} Hz)",
+        xaxis_title="Time (s)",
+        yaxis_title="Voltage"
+    )
+
+    return fig
+
 
 # ---- CLIENTSIDE CALLBACK to trigger MathJax ----
 app.clientside_callback(
