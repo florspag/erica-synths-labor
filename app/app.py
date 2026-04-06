@@ -11,6 +11,7 @@ app = dash.Dash(
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     suppress_callback_exceptions=True
 )
+app.title = "Labor"
 
 # ---- MathJax (loaded once only) ----
 app.index_string = '''
@@ -35,6 +36,7 @@ app.index_string = '''
 '''
 
 class CircuitType(StrEnum):
+    RESISTOR = "resistor"
     LOWPASS = 'lowpass'
     OHM = "ohm"
     RC = 'rc'
@@ -42,6 +44,52 @@ class CircuitType(StrEnum):
     VCA = "vca"
     BRIDGED_T_OSC = "bridged_t_osc"
 
+
+# Resistor colors values
+
+# Color mappings
+color_values = {
+    "Black": 0, "Brown": 1, "Red": 2, "Orange": 3,
+    "Yellow": 4, "Green": 5, "Blue": 6,
+    "Violet": 7, "Grey": 8, "White": 9
+}
+
+# Color maps (hex for UI)
+color_map = {
+    "Black": "#000000",
+    "Brown": "#8B4513",
+    "Red": "#FF0000",
+    "Orange": "#FFA500",
+    "Yellow": "#FFD700",
+    "Green": "#008000",
+    "Blue": "#0000FF",
+    "Violet": "#8A2BE2",
+    "Grey": "#808080",
+    "White": "#FFFFFF",
+    "Gold": "#D4AF37",
+    "Silver": "#C0C0C0"
+}
+
+multiplier_values = {
+    "Black": 1, "Brown": 10, "Red": 100, "Orange": 1_000,
+    "Yellow": 10_000, "Green": 100_000, "Blue": 1_000_000,
+    "Violet": 10_000_000, "Grey": 100_000_000, "White": 1_000_000_000,
+    "Gold": 0.1, "Silver": 0.01
+}
+
+tolerance_values = {
+    "Brown": "±1%", "Red": "±2%", "Green": "±0.5%",
+    "Blue": "±0.25%", "Violet": "±0.1%",
+    "Grey": "±0.05%", "Gold": "±5%", "Silver": "±10%"
+}
+
+def format_resistance(value):
+    if value >= 1_000_000:
+        return f"{value/1_000_000:.2f} MΩ"
+    elif value >= 1_000:
+        return f"{value/1_000:.2f} kΩ"
+    else:
+        return f"{value} Ω"
 
 # ---- LAYOUT ----
 app.layout = dbc.Container([
@@ -58,6 +106,7 @@ app.layout = dbc.Container([
                             dbc.Select(
                                 id='selected-circuit',
                                 options=[
+                                    {'label': "Resistor value", 'value': CircuitType.RESISTOR},
                                     {'label': "Ohm's Law", 'value': CircuitType.OHM},
                                     {'label': "RC Circuit", 'value': CircuitType.RC},
                                     {'label': "Low Pass Filter", 'value': CircuitType.LOWPASS},
@@ -83,6 +132,25 @@ app.layout = dbc.Container([
 
 # ---- UI GENERATORS ----
 
+def generate_resistor_ui():
+    return dbc.Card([
+        dbc.CardBody([
+    html.H2("🎨 Resistor Color Code Simulator"),
+
+    # Dropdowns
+    html.Div([
+        dcc.Dropdown(list(color_values.keys()), "Brown", id="band1"),
+        dcc.Dropdown(list(color_values.keys()), "Black", id="band2"),
+        dcc.Dropdown(list(multiplier_values.keys()), "Red", id="band3"),
+        dcc.Dropdown(list(tolerance_values.keys()), "Gold", id="band4"),
+    ], style={"width": "250px", "marginBottom": "30px"}),
+
+    # Resistor drawing
+    html.Div(id="resistor-visual"),
+
+    html.H3(id="result", style={"marginTop": "20px"})
+        ])
+    ])
 def generate_ohm_ui():
     return dbc.Card([
         dbc.CardBody([
@@ -548,46 +616,6 @@ def generate_bridged_t_ui():
                 "at the resonant frequency defined by R and C.",
                 style={"fontSize": "14px"}
             ),
-            html.Div([
-
-                html.B("Circuit Topology (Bridged-T Oscillator):"),
-
-                html.Div([
-
-                    html.Pre("""
-                            Vout
-                            |
-                            +----------------------+
-                            |                      |
-                            R1                     C1
-                            |                      |
-                            +------●------●-------+
-                                    |      |
-                                C2     R2
-                                    |      |
-                                GND    GND
-
-                                    |
-                                    v
-                            (+) Op-Amp
-                                    |
-                                [A]
-                                    |
-                                Vout
-                                    ^
-                                    |
-                            (-) feedback from bridged-T network
-                    """, style={
-                        "padding": "12px",
-                        "borderRadius": "6px",
-                        "fontFamily": "monospace",
-                        "fontSize": "13px",
-                        "lineHeight": "1.2"
-                    })
-
-                ], style={"marginTop": "10px"})
-
-            ]),
 
             # =========================
             # EQUATIONS
@@ -705,6 +733,8 @@ def generate_bridged_t_ui():
 )
 def render_simulation(circuit_type):
     match circuit_type: 
+        case CircuitType.RESISTOR:
+            return generate_resistor_ui()
         case CircuitType.OHM:
             return generate_ohm_ui()
         case CircuitType.RC:
@@ -721,6 +751,62 @@ def render_simulation(circuit_type):
             return dbc.Alert("Select a circuit to begin", color="info")
 
     return dbc.Alert("Unsupported circuit", color="warning")
+
+
+@app.callback(
+    Output("resistor-visual", "children"),
+    Output("result", "children"),
+    Input("band1", "value"),
+    Input("band2", "value"),
+    Input("band3", "value"),
+    Input("band4", "value"),
+)
+def update_resistor(b1, b2, b3, b4):
+    # Compute resistance
+    value = (color_values[b1] * 10 + color_values[b2]) * multiplier_values[b3]
+    formatted = format_resistance(value)
+    result_text = f"{formatted} {tolerance_values[b4]}"
+
+    # Create band styles
+    def band(color):
+        return {
+            "width": "10px",
+            "height": "60px",
+            "backgroundColor": color_map[color],
+            "margin": "0 5px"
+        }
+
+    resistor = html.Div([
+        # left wire
+        html.Div(style={
+            "width": "80px", "height": "4px", "background": "black"
+        }),
+
+        # body + bands
+        html.Div([
+            html.Div(style=band(b1)),
+            html.Div(style=band(b2)),
+            html.Div(style=band(b3)),
+            html.Div(style=band(b4)),
+        ], style={
+            "display": "flex",
+            "alignItems": "center",
+            "background": "#f5deb3",
+            "padding": "10px",
+            "borderRadius": "20px"
+        }),
+
+        # right wire
+        html.Div(style={
+            "width": "80px", "height": "4px", "background": "black"
+        }),
+    ], style={
+        "display": "flex",
+        "alignItems": "center",
+        "gap": "10px"
+    })
+
+    return resistor, f"Resistance: {result_text}"
 
 @app.callback(
     Output('voltage-output', 'children'),
